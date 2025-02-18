@@ -1,39 +1,78 @@
-math.randomseed(os.time() + os.clock() * 1000)
+local status_codes = {200, 301, 400, 401, 403, 404, 500, 503}
+local random_index = math.random(1, #status_codes)
+local status = status_codes[random_index]
 
-local paths = {"/api/users", "/api/orders", "/api/products", "/api/checkout"}
-local protocols = {"http", "https"}
-local methods = {"GET", "POST", "PUT", "DELETE"}
-local user_agents = {
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
-    "Mozilla/5.0 (Android 11; Mobile; rv:87.0)"
+ngx.status = status
+ngx.header["Content-Type"] = "text/plain"
+ngx.req.read_body()
+
+local httpc = require("resty.http").new()
+local cjson = require "cjson"
+local pb = require "pb"
+local protoc = require "protoc"
+
+local routing_key = os.getenv("RABBITMQ_ROUTING_KEY")
+local rabbit_exchange = os.getenv("RABBITMQ_EXCHANGE")
+local rabbit_url = os.getenv("RABBITMQ_URL")
+local rabbit_user = os.getenv("RABBITMQ_USER")
+local rabbit_pass = os.getenv("RABBITMQ_PASS")
+local authorization = 'Basic ' .. ngx.encode_base64(rabbit_user .. ':' .. rabbit_pass)
+
+assert(protoc:load [[
+    message NginxLog {
+      required string time_iso8601 = 1;
+      required string remote_addr = 2;
+      required string request = 3;
+      required string status = 4;
+      required string body_bytes_sent = 5;
+      required string request_time = 6;
+      required string http_referer = 7;
+      required string http_user_agent = 8;
+      required string request_body = 9;
+      required string host = 10;
+      required string content_type = 11;
+      required string content_length = 12;
+      required string duplicated_time_iso8601 = 13;
+    }
+]])
+
+local decoded_body = {
+    time_iso8601 = ngx.var.time_iso8601,
+    remote_addr = ngx.var.remote_addr,
+    method = ngx.var.method,
+    request_uri = ngx.var.request_uri,
+    status = ngx.var.status,
+    body_bytes_sent = ngx.var.body_bytes_sent,
+    request_time = ngx.var.request_time,
+    http_referer = ngx.var.http_referer,
+    http_user_agent = ngx.var.http_user_agent,
+    body_data = ngx.var.body_data,
+    host = ngx.var.host,
+    content_type = ngx.var.content_type,
+    content_length = ngx.var.content_length
 }
 
-request = function()
-    local protocol = protocols[math.random(1, #protocols)]
-    local path = paths[math.random(1, #paths)]
-    local method = methods[math.random(1, #methods)]
-    local user_agent = user_agents[math.random(1, #user_agents)]
+local encode = pb.encode("NginxLog", decoded_body)
+local payload = ngx.encode_base64(encode)
 
-    local id = math.random(1, 1000)
-    local url
-    local body = ""
+local body = {
+    properties = { delivery_mode = 2 },
+    routing_key = routing_key,
+    payload = payload,
+    payload_encoding = "string"
+}
 
-    if method == "GET" or method == "DELETE" then
-        local query = string.format("?id=%d&name=random%d", id, math.random(100, 999))
-        url = string.format("%s://localhost:8080%s%s", protocol, path, query)
-    else
-        url = string.format("%s://localhost:8080%s", protocol, path)
-        body = string.format('{"id": %d, "name": "random%d", "value": %d}', id, math.random(100, 999), math.random(1, 1000))
-    end
-
-    local headers = {
-        ["User-Agent"] = user_agent,
-        ["Content-Type"] = "application/json"
+local res, err = httpc:request_uri(rabbit_url .. "/api/exchanges/%2f/" .. rabbit_exchange .. "/publish", {
+    method = "POST",
+    body = cjson.encode(body),
+    headers = {
+        ["Content-Type"] = "application/json",
+        ["Authorization"] = authorization
     }
+})
 
-    local response = wrk.format(method, url, headers, body)
-
-    return response
+if not res then
+    ngx.log(ngx.STDERR, tostring(err))
 end
+
+ngx.exit(status)

@@ -15,7 +15,11 @@ defmodule AppWeb.Router do
   end
 
   scope "/", AppWeb do
-    pipe_through :browser
+    pipe_through :api
+
+    scope "/metrics" do
+      forward "/", App.Metrics
+    end
 
     get "/", PageController, :home
   end

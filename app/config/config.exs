@@ -7,6 +7,10 @@
 # General application configuration
 import Config
 
+config :app, App.ElasticSearchClient.Log,
+       url: System.get_env("ELASTICSEARCH_URL") || "http://localhost:9200",
+       index: "nginx_logs"
+
 config :app,
   ecto_repos: [App.Repo],
   generators: [timestamp_type: :utc_datetime]
@@ -60,6 +64,12 @@ config :logger, :console,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+config :app, App.InfluxDB,
+       auth: [method: :token, token: System.get_env("INFLUXDB_TOKEN") || ""],
+       org: System.get_env("INFLUXDB_ORG") || "",
+       bucket: System.get_env("INFLUXDB_BUCKET") || "",
+       host: System.get_env("INFLUXDB_HOST") || ""
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

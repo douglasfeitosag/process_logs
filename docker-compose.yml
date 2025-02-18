@@ -1,22 +1,72 @@
-version: "3.9"
 services:
   openresty:
     build:
       context: ./nginx
-      dockerfile: Dockerfile.nginx
+      dockerfile: Dockerfile
     container_name: openresty-server
+    env_file:
+      - ./nginx/.env
     ports:
       - "8080:8080"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - shared-data:/usr/local/openresty/nginx/logs
+      - log-openresty:/usr/local/openresty/nginx/logs
     restart: unless-stopped
     command: ["openresty", "-g", "daemon off;"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:management
+    restart: always
+    env_file:
+      - ./rabbitmq/.env
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmqctl", "status" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  rabbitmq-setup:
+    image: rabbitmq:management
+    env_file:
+      - ./rabbitmq/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./rabbitmq/rabbitmq-setup.sh:/rabbitmq-setup.sh
+    command: [ "bash", "/rabbitmq-setup.sh" ]
 
   elixir_app:
-    build: .
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     ports:
       - "4000:4000"
+    environment:
+      INFLUXDB_TOKEN: "${INFLUXDB_TOKEN}"
+      INFLUXDB_ORG: "${INFLUXDB_ORG}"
+      INFLUXDB_BUCKET: "${INFLUXDB_BUCKET}"
+      INFLUXDB_HOST: "${INFLUXDB_HOST}"
+    depends_on:
+      - influxdb
+    networks:
+      - app_network
+    command: ["bin/app", "start"]
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: always
+    ports:
+      - "8086:8086"
     networks:
       - app_network
 
@@ -24,7 +74,7 @@ services:
     image: prom/prometheus
     container_name: prometheus
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./app/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
     networks:
@@ -35,6 +85,9 @@ services:
   grafana:
     image: grafana/grafana
     container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GF_SECURITY_ADMIN_USER}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GF_SECURITY_ADMIN_PASSWORD}"
     ports:
       - "3000:3000"
     depends_on:
@@ -42,11 +95,12 @@ services:
     networks:
       - app_network
 
-
 networks:
   app_network:
     driver: bridge
 
 volumes:
-  shared-data:
+  rabbitmq-data:
+    driver: local
+  log-openresty:
     driver: local
