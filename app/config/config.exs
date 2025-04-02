@@ -7,9 +7,33 @@
 # General application configuration
 import Config
 
+config :brod,
+       clients: [
+         kafka_client: [
+           endpoints: [kafka: 9092],
+           auto_start_producers: true,
+           # The following :ssl and :sasl configs are not
+           # required when running kafka locally unauthenticated
+           ssl: true,
+           sasl: {
+             :plain,
+             System.get_env("KAFKA_CLUSTER_API_KEY"),
+             System.get_env("KAFKA_CLUSTER_API_SECRET")
+           }
+         ]
+       ]
+
+config :app, App.ElasticsearchCluster,
+  url: "http://elasticsearch:9200",
+  username: System.get_env("ELASTIC_PASSWORD"),
+  password: System.get_env("ELASTIC_USERNAME"),
+  json_library: Jason,
+  api: Elasticsearch.API.HTTP
+
 config :app, App.ElasticSearchClient.Log,
-       url: System.get_env("ELASTICSEARCH_URL") || "http://localhost:9200",
-       index: "nginx_logs"
+  url:
+    "http://#{System.get_env("ELASTIC_USERNAME")}:#{System.get_env("ELASTIC_PASSWORD")}@elasticsearch:9200",
+  index: System.get_env("ELASTIC_INDEX_NAME")
 
 config :app,
   ecto_repos: [App.Repo],
@@ -17,14 +41,17 @@ config :app,
 
 # Configures the endpoint
 config :app, AppWeb.Endpoint,
-  url: [host: "localhost"],
+  url: [host: "elixir_app", port: 4000],
+  check_origin: ["//elixir_app", "//localhost", "//127.0.0.1"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: AppWeb.ErrorHTML, json: AppWeb.ErrorJSON],
     layout: false
   ],
   pubsub_server: App.PubSub,
-  live_view: [signing_salt: "PgkMp6j2"]
+  live_view: [signing_salt: "PgkMp6j2"],
+  http: [ip: {0, 0, 0, 0}, port: 4000],
+  debug_errors: true
 
 # Configures the mailer
 #
@@ -66,10 +93,10 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 config :app, App.InfluxDB,
-       auth: [method: :token, token: System.get_env("INFLUXDB_TOKEN") || ""],
-       org: System.get_env("INFLUXDB_ORG") || "",
-       bucket: System.get_env("INFLUXDB_BUCKET") || "",
-       host: System.get_env("INFLUXDB_HOST") || ""
+  auth: [method: :token, token: System.get_env("INFLUXDB_TOKEN") || ""],
+  org: System.get_env("INFLUXDB_ORG") || "",
+  bucket: System.get_env("INFLUXDB_BUCKET") || "",
+  host: System.get_env("INFLUXDB_HOST") || ""
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

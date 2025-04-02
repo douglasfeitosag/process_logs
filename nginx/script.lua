@@ -1,6 +1,12 @@
 local status_codes = {200, 301, 400, 401, 403, 404, 500, 503}
 local random_index = math.random(1, #status_codes)
 local status = status_codes[random_index]
+local max_time = 30
+
+local function get_sleep_time()
+    local random_number = math.random()
+    return max_time * random_number * random_number
+end
 
 ngx.status = status
 ngx.header["Content-Type"] = "text/plain"
@@ -11,12 +17,10 @@ local cjson = require "cjson"
 local pb = require "pb"
 local protoc = require "protoc"
 
-local routing_key = os.getenv("RABBITMQ_ROUTING_KEY")
-local rabbit_exchange = os.getenv("RABBITMQ_EXCHANGE")
-local rabbit_url = os.getenv("RABBITMQ_URL")
-local rabbit_user = os.getenv("RABBITMQ_USER")
-local rabbit_pass = os.getenv("RABBITMQ_PASS")
-local authorization = 'Basic ' .. ngx.encode_base64(rabbit_user .. ':' .. rabbit_pass)
+local kafka_host = os.getenv("KAFKA_HOST")
+local kafka_port = os.getenv("KAFKA_PORT")
+local kafka_topic = os.getenv("KAFKA_TOPIC")
+--local authorization = 'Basic ' .. ngx.encode_base64(rabbit_user .. ':' .. rabbit_pass)
 
 assert(protoc:load [[
     message NginxLog {
@@ -32,9 +36,12 @@ assert(protoc:load [[
       required string host = 10;
       required string content_type = 11;
       required string content_length = 12;
-      required string duplicated_time_iso8601 = 13;
+      required string response_time = 13;
     }
 ]])
+
+local time = get_sleep_time()
+local response_time = math.randomseed(os.time() + os.clock() * 1000 + time)
 
 local decoded_body = {
     time_iso8601 = ngx.var.time_iso8601,
@@ -49,25 +56,35 @@ local decoded_body = {
     body_data = ngx.var.body_data,
     host = ngx.var.host,
     content_type = ngx.var.content_type,
-    content_length = ngx.var.content_length
+    content_length = ngx.var.content_length,
+    response_time = response_time,
 }
 
 local encode = pb.encode("NginxLog", decoded_body)
 local payload = ngx.encode_base64(encode)
+local body = cjson.encode({ message = payload })
 
-local body = {
-    properties = { delivery_mode = 2 },
-    routing_key = routing_key,
-    payload = payload,
-    payload_encoding = "string"
-}
+--local body = {
+--    properties = { delivery_mode = 2 },
+--    routing_key = routing_key,
+--    payload = payload,
+--    payload_encoding = "string"
+--}
 
-local res, err = httpc:request_uri(rabbit_url .. "/api/exchanges/%2f/" .. rabbit_exchange .. "/publish", {
+--local res, err = httpc:request_uri(rabbit_url .. "/api/exchanges/%2f/" .. rabbit_exchange .. "/publish", {
+--    method = "POST",
+--    body = cjson.encode(body),
+--    headers = {
+--        ["Content-Type"] = "application/json",
+--        ["Authorization"] = authorization
+--    }
+--})
+
+local res, err = httpc:request_uri("http://" .. kafka_host .. ":" .. kafka_port .. "/topics/" .. kafka_topic, {
     method = "POST",
-    body = cjson.encode(body),
+    body = body,
     headers = {
-        ["Content-Type"] = "application/json",
-        ["Authorization"] = authorization
+        ["Content-Type"] = "application/vnd.kafka.json.v2+json"
     }
 })
 

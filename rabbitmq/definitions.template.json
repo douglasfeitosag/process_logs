@@ -1,0 +1,43 @@
+{
+  "rabbit_version": "3.13",
+  "users": [
+    {
+      "name": "$RABBITMQ_DEFAULT_USER",
+      "password_hash": "${RABBITMQ_HASHED_PASS}",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [{ "name": "/" }],
+  "permissions": [
+    {
+      "user": "$RABBITMQ_DEFAULT_USER",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "streams": [
+    {
+      "name": "$RABBITMQ_STREAM",
+      "vhost": "/"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "$RABBITMQ_EXCHANGE",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    }
+  ],
+  "bindings": [
+    {
+      "source": "$RABBITMQ_EXCHANGE",
+      "vhost": "/",
+      "destination": "$RABBITMQ_STREAM",
+      "destination_type": "queue",
+      "routing_key": "$RABBITMQ_ROUTING_KEY"
+    }
+  ]
+}

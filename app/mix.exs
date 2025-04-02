@@ -53,16 +53,19 @@ defmodule App.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.5"},
-      {:finch, "~> 0.13"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:telemetry_metrics_prometheus, "~> 1.1.0"},
-      {:telemetry_metrics_prometheus_core, "~> 1.1"},
-      {:plug_cowboy, "~> 2.5"}
+      {:prom_ex, "~> 1.11.0"},
+      #      {:telemetry_metrics_prometheus, "~> 1.1.0"},
+      {:plug_cowboy, "~> 2.5"},
+      {:protobuf, "~> 0.14.1"},
+      {:finch, "~> 0.16"},
+      {:gen_stage, "~> 1.2.1"},
+      {:brod, "~> 3.16"}
     ]
   end
 

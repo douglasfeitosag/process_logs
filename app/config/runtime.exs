@@ -20,7 +20,24 @@ if System.get_env("PHX_SERVER") do
   config :app, AppWeb.Endpoint, server: true
 end
 
+config :app, AppWeb.Router,
+  username: System.get_env("DASHBOARD_USERNAME"),
+  password: System.get_env("DASHBOARD_PASSWORD")
+
 if config_env() == :prod do
+  grafana_auth_token = File.read!("/var/lib/grafana/auth_token.txt") |> String.trim()
+
+  config :app, App.PromEx,
+    metrics_server: [
+      port: 9568,
+      ip: {0, 0, 0, 0}
+    ],
+    grafana: [
+      host: "http://grafana:3000",
+      auth_token: grafana_auth_token,
+      upload_dashboards_on_start: true
+    ]
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

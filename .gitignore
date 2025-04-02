@@ -1,0 +1,5 @@
+/nginx/.env
+/rabbitmq/.env
+/grafana/.env
+/postgresql/.env
+/elasticsearch/.env

@@ -5,6 +5,7 @@ FROM hexpm/elixir:1.18.2-erlang-27.2-debian-bookworm-20250113-slim AS build
 RUN apt-get update && \
     apt-get install -y build-essential inotify-tools git curl && \
     apt-get install -y postgresql-client && \
+    apt-get install -y curl && \
     apt-get clean
 
 # Instalar Node.js (necessário para compilar assets)
@@ -41,7 +42,7 @@ RUN MIX_ENV=prod mix do compile, phx.digest, release
 FROM hexpm/elixir:1.18.2-erlang-27.2-debian-bookworm-20250113-slim AS release
 
 # Instalar runtime Erlang e criar diretório de trabalho
-RUN apt-get update && apt-get install -y libssl-dev postgresql-client && apt-get clean
+RUN apt-get update && apt-get install -y libssl-dev postgresql-client curl && apt-get clean
 WORKDIR /app
 
 # Copiar arquivos da etapa de `build` para o runtime

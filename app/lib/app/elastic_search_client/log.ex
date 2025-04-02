@@ -1,33 +1,45 @@
 defmodule App.ElasticSearchClient.Log do
   alias Elasticsearch.Index
-  alias Elasticsearch.Document
 
-  @config Application.get_env(:my_app, App.ElasticSearchClient.Log, %{})
-  @url Map.get(@config, :url)
-  @index Map.get(@config, :index)
+  @config Application.compile_env(:app, __MODULE__)
+  @url Keyword.get(@config, :url)
+  @index Keyword.get(@config, :index)
 
   def create_index do
-    Index.create(@url, @index, %{
+    Index.create(@url, "nginx_logs", %{
       mappings: %{
         properties: %{
-          "timestamp" => %{type: "date"},
-          "ip" => %{type: "ip"},
+          "time_iso8601" => %{type: "date"},
+          "remote_addr" => %{type: "ip"},
           "request" => %{type: "text"},
-          "status_code" => %{type: "integer"},
+          "status" => %{type: "keyword"},
           "body_bytes_sent" => %{type: "long"},
-          "response_time" => %{type: "float"},
+          "request_time" => %{type: "float"},
           "http_referer" => %{type: "text"},
-          "user_agent" => %{type: "text"},
+          "http_user_agent" => %{type: "text"},
           "request_body" => %{type: "text"},
           "host" => %{type: "keyword"},
           "content_type" => %{type: "keyword"},
-          "content_length" => %{type: "long"}
+          "content_length" => %{type: "long"},
+          "response_time" => %{type: "float"},
+          "timestamp" => %{type: "date"}
         }
       }
     })
   end
 
   def insert_log(log_data) do
-    Document.index(@url, @index, log_data)
+    timestamp = DateTime.utc_now()
+    log_data = Map.put(log_data, :timestamp, timestamp)
+
+    case Elasticsearch.put_document(App.ElasticsearchCluster, log_data, @index) do
+      {:ok, result} ->
+        IO.inspect(result, label: "Resultado da inserção")
+        :ok
+
+      {:error, error} ->
+        IO.inspect(error, label: "Erro ao inserir log")
+        :error
+    end
   end
 end

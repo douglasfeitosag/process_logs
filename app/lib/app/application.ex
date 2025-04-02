@@ -8,15 +8,22 @@ defmodule App.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      {Finch, name: App.Finch, pools: %{default: [size: 10, count: 2]}},
+      {App.KafkaConsumer, []},
+      App.KafkaProducer,
+      App.ElasticsearchConsumer,
+      App.ElasticsearchCluster,
+      App.PromEx,
       AppWeb.Telemetry,
       App.Repo,
       {DNSCluster, query: Application.get_env(:app, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: App.PubSub},
       # Start the Finch HTTP client for sending emails
-      {Finch, name: App.Finch},
+      #      {Finch, name: App.Finch},
       # Start a worker by calling: App.Worker.start_link(arg)
       # {App.Worker, arg},
       # Start to serve requests, typically the last entry
+
       AppWeb.Endpoint
     ]
 
